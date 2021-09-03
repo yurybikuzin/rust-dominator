@@ -429,7 +429,7 @@ impl<A> DomBuilder<A> {
         self.callbacks.after_remove(on_preventable(element, listener));
     }
 
-    // TODO add this to the StylesheetBuilder and ClassBuilder too
+    // TODO add this to the StylesheetBuilder too
     #[inline]
     pub fn global_event<T, F>(mut self, listener: F) -> Self
         where T: StaticEvent,
@@ -438,7 +438,7 @@ impl<A> DomBuilder<A> {
         self
     }
 
-    // TODO add this to the StylesheetBuilder and ClassBuilder too
+    // TODO add this to the StylesheetBuilder too
     #[inline]
     pub fn global_event_preventable<T, F>(mut self, listener: F) -> Self
         where T: StaticEvent,
@@ -985,6 +985,7 @@ impl<A> DomBuilder<A> where A: AsRef<HtmlElement> {
 pub struct StylesheetBuilder {
     element: CssStyleDeclaration,
     callbacks: Callbacks,
+    selector: String,
 }
 
 // TODO remove the CssStyleRule when this is discarded
@@ -998,10 +999,10 @@ impl StylesheetBuilder {
             static STYLESHEET: CssStyleSheet = bindings::create_stylesheet();
         }
 
-        fn try_make(stylesheet: &CssStyleSheet, selector: &str, selectors: &mut Vec<String>) -> Option<CssStyleDeclaration> {
+        fn try_make(stylesheet: &CssStyleSheet, selector: &str, selectors: &mut Vec<String>) -> Option<(String, CssStyleDeclaration)> {
             // TODO maybe intern the selector ?
             if let Ok(declaration) = bindings::make_style_rule(stylesheet, selector) {
-                Some(declaration.style())
+                Some((selector.to_string(), declaration.style()))
 
             } else {
                 selectors.push(String::from(selector));
@@ -1009,7 +1010,7 @@ impl StylesheetBuilder {
             }
         }
 
-        let element = STYLESHEET.with(move |stylesheet| {
+        let (selector, element) = STYLESHEET.with(move |stylesheet| {
             let mut selectors = vec![];
 
             let okay = selector.find_map(|selector| {
@@ -1018,7 +1019,6 @@ impl StylesheetBuilder {
 
             if let Some(okay) = okay {
                 okay
-
             } else {
                 // TODO maybe make this configurable
                 panic!("selectors are incorrect:\n  {}", selectors.join("\n  "));
@@ -1028,7 +1028,18 @@ impl StylesheetBuilder {
         Self {
             element,
             callbacks: Callbacks::new(),
+            selector
         }
+    }
+
+    #[inline]
+    pub fn new_unique_class() -> Self {
+        Self::new(__internal::make_class_id())
+    }
+
+    #[inline]
+    pub fn selector(&self) -> &str {
+        &self.selector
     }
 
     #[inline]
@@ -1074,85 +1085,12 @@ impl StylesheetBuilder {
 
     // TODO return a Handle
     #[inline]
-    pub fn finish(mut self) {
+    pub fn finish(mut self) -> String {
         self.callbacks.trigger_after_insert();
 
         // This prevents it from triggering after_remove
         self.callbacks.leak();
-    }
-}
-
-
-// TODO better warning message for must_use
-#[must_use]
-pub struct ClassBuilder {
-    stylesheet: StylesheetBuilder,
-    class_name: String,
-}
-
-impl ClassBuilder {
-    #[inline]
-    pub fn new() -> Self {
-        let class_name = __internal::make_class_id();
-
-        Self {
-            // TODO make this more efficient ?
-            stylesheet: StylesheetBuilder::new(&format!(".{}", class_name)),
-            class_name,
-        }
-    }
-
-    #[inline]
-    pub fn class_name(&self) -> &str {
-        &self.class_name
-    }
-
-    #[inline]
-    pub fn style<B, C>(mut self, name: B, value: C) -> Self
-        where B: MultiStr,
-              C: MultiStr {
-        self.stylesheet = self.stylesheet.style(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_important<B, C>(mut self, name: B, value: C) -> Self
-        where B: MultiStr,
-              C: MultiStr {
-        self.stylesheet = self.stylesheet.style_important(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_signal<B, D, E>(mut self, name: B, value: E) -> Self
-        where B: MultiStr + 'static,
-              D: OptionStr,
-              E: Signal<Item = D> + 'static {
-
-        self.stylesheet = self.stylesheet.style_signal(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_important_signal<B, D, E>(mut self, name: B, value: E) -> Self
-        where B: MultiStr + 'static,
-              D: OptionStr,
-              E: Signal<Item = D> + 'static {
-
-        self.stylesheet = self.stylesheet.style_important_signal(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn apply<F>(self, f: F) -> Self where F: FnOnce(Self) -> Self {
-        f(self)
-    }
-
-    // TODO return a Handle ?
-    #[inline]
-    pub fn finish(self) -> String {
-        self.stylesheet.finish();
-        self.class_name
+        self.selector
     }
 }
 

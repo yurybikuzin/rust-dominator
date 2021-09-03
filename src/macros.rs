@@ -314,7 +314,7 @@ macro_rules! stylesheet {
 }
 
 /// Creates a unique auto-generated CSS classname and injects it into [`document.styleSheets`](https://developer.mozilla.org/en-US/docs/Web/API/Document/styleSheets).
-/// It wraps [`ClassBuilder`](crate::ClassBuilder) and takes any of its methods.
+/// It wraps [`StylesheetBuilder`](crate::StylesheetBuilder) and takes any of its methods.
 /// ```
 /// let padding = Mutable::new(10);
 ///
@@ -349,7 +349,7 @@ macro_rules! stylesheet {
 #[macro_export]
 macro_rules! class {
     ($($methods:tt)*) => {{
-        $crate::ClassBuilder::finish($crate::apply_methods!($crate::ClassBuilder::new(), { $($methods)* }))
+        $crate::StylesheetBuilder::finish($crate::apply_methods!($crate::StylesheetBuilder::new_unique_class(), { $($methods)* }))
     }};
 }
 
@@ -372,7 +372,7 @@ macro_rules! pseudo {
         $crate::pseudo!($this, $rules, {})
     };
     ($this:ident, $rules:expr, { $($methods:tt)* }) => {{
-        $crate::stylesheet!($crate::__internal::Pseudo::new($crate::ClassBuilder::class_name(&$this), $rules), { $($methods)* });
+        $crate::stylesheet!($crate::__internal::Pseudo::new($crate::StylesheetBuilder::selector(&$this), $rules), { $($methods)* });
         $this
     }};
 }
