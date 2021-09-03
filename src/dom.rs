@@ -456,14 +456,13 @@ impl<A> DomBuilder<A> {
 
     #[inline]
     pub fn apply<F>(self, f: F) -> Self where F: FnOnce(Self) -> Self {
-        self.apply_if(true, f)
+        f(self)
     }
 
     #[inline]
     pub fn apply_if<F>(self, test: bool, f: F) -> Self where F: FnOnce(Self) -> Self {
         if test {
             f(self)
-
         } else {
             self
         }
@@ -1068,6 +1067,11 @@ impl StylesheetBuilder {
         self
     }
 
+    #[inline]
+    pub fn apply<F>(self, f: F) -> Self where F: FnOnce(Self) -> Self {
+        f(self)
+    }
+
     // TODO return a Handle
     #[inline]
     pub fn finish(mut self) {
@@ -1137,6 +1141,11 @@ impl ClassBuilder {
 
         self.stylesheet = self.stylesheet.style_important_signal(name, value);
         self
+    }
+
+    #[inline]
+    pub fn apply<F>(self, f: F) -> Self where F: FnOnce(Self) -> Self {
+        f(self)
     }
 
     // TODO return a Handle ?
