@@ -1120,14 +1120,14 @@ pub mod __internal {
 
 
     pub struct Pseudo<'a, A> {
-        class_name: &'a str,
+        selector: &'a str,
         pseudos: A,
     }
 
     impl<'a, A> Pseudo<'a, A> where A: MultiStr {
         #[inline]
-        pub fn new(class_name: &'a str, pseudos: A) -> Self {
-            Self { class_name, pseudos }
+        pub fn new(selector: &'a str, pseudos: A) -> Self {
+            Self { selector, pseudos }
         }
     }
 
@@ -1135,7 +1135,7 @@ pub mod __internal {
         #[inline]
         fn find_map<B, F>(&self, mut f: F) -> Option<B> where F: FnMut(&str) -> Option<B> {
             self.pseudos.find_map(|x| {
-                f(&format!(".{}{}", self.class_name, x))
+                f(&format!(":is({}){}", self.selector, x))
             })
         }
     }
