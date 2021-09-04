@@ -1092,6 +1092,15 @@ impl StylesheetBuilder {
         self.callbacks.leak();
         self.selector
     }
+
+    #[inline]
+    pub fn finish_class(self) -> String {
+        let mut selector = self.finish();
+        if selector.remove(0) != '.' {
+            panic!("Selector is not a class");
+        }
+        selector
+    }
 }
 
 
