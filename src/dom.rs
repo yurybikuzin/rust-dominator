@@ -1115,7 +1115,7 @@ pub mod __internal {
         let id = CLASS_ID.fetch_add(1, Ordering::Relaxed);
 
         // TODO make this more efficient ?
-        format!("__class_{}__", id)
+        format!(".__class_{}__", id)
     }
 
 
