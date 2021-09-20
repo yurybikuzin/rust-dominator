@@ -1149,7 +1149,8 @@ impl StylesheetBuilder {
     #[inline]
     pub fn style_unchecked_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
         where B: AsStr + 'static,
-              D: OptionStr,
+              C: AsStr,
+              D: OptionStr<Output = C>,
               E: Signal<Item = D> + 'static {
 
         set_style_unchecked_signal(self.element.clone(), &mut self.callbacks, name, value, false);
