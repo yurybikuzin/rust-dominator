@@ -503,14 +503,12 @@ impl<A> DomBuilder<A> where A: Clone {
         self.element.clone()
     }
 
-    #[deprecated(since = "0.5.1", note = "Use the with_node macro instead")]
     #[inline]
     pub fn with_element<B, F>(self, f: F) -> B where F: FnOnce(Self, A) -> B {
         let element = self.element.clone();
         f(self, element)
     }
 
-    #[deprecated(since = "0.5.20", note = "Use the with_node macro instead")]
     #[inline]
     pub fn before_inserted<F>(self, f: F) -> Self where F: FnOnce(A) {
         let element = self.element.clone();
