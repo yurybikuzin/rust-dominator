@@ -346,10 +346,9 @@ fn set_style<A, B>(style: &CssStyleDeclaration, name: &A, value: B, important: b
 }
 
 // TODO should this inline ?
-fn set_style_signal<A, B, C, D>(style: CssStyleDeclaration, callbacks: &mut Callbacks, name: A, value: D, important: bool)
+fn set_style_signal<A, C, D>(style: CssStyleDeclaration, callbacks: &mut Callbacks, name: A, value: D, important: bool)
     where A: MultiStr + 'static,
-          B: MultiStr,
-          C: OptionStr<Output = B>,
+          C: OptionStr,
           D: Signal<Item = C> + 'static {
 
     set_option(style, callbacks, value, move |style, value| {
@@ -458,7 +457,7 @@ impl<A> DomBuilder<A> {
         self.callbacks.after_remove(on_preventable(element, listener));
     }
 
-    // TODO add this to the StylesheetBuilder and ClassBuilder too
+    // TODO add this to the StylesheetBuilder too
     #[inline]
     pub fn global_event<T, F>(mut self, listener: F) -> Self
         where T: StaticEvent,
@@ -467,7 +466,7 @@ impl<A> DomBuilder<A> {
         self
     }
 
-    // TODO add this to the StylesheetBuilder and ClassBuilder too
+    // TODO add this to the StylesheetBuilder too
     #[inline]
     pub fn global_event_preventable<T, F>(mut self, listener: F) -> Self
         where T: StaticEvent,
@@ -492,7 +491,6 @@ impl<A> DomBuilder<A> {
     pub fn apply_if<F>(self, test: bool, f: F) -> Self where F: FnOnce(Self) -> Self {
         if test {
             f(self)
-
         } else {
             self
         }
@@ -501,19 +499,16 @@ impl<A> DomBuilder<A> {
 
 impl<A> DomBuilder<A> where A: Clone {
     #[inline]
-    #[doc(hidden)]
-    pub fn __internal_element(&self) -> A {
+    pub fn element(&self) -> A {
         self.element.clone()
     }
 
-    #[deprecated(since = "0.5.1", note = "Use the with_node macro instead")]
     #[inline]
     pub fn with_element<B, F>(self, f: F) -> B where F: FnOnce(Self, A) -> B {
         let element = self.element.clone();
         f(self, element)
     }
 
-    #[deprecated(since = "0.5.20", note = "Use the with_node macro instead")]
     #[inline]
     pub fn before_inserted<F>(self, f: F) -> Self where F: FnOnce(A) {
         let element = self.element.clone();
@@ -545,6 +540,10 @@ impl<A> DomBuilder<A> where A: Into<Node> {
             element: self.element.into(),
             callbacks: self.callbacks,
         }
+    }
+    #[inline]
+    pub fn finish(self) -> Dom {
+        self.into_dom()
     }
 }
 
@@ -949,10 +948,9 @@ impl<A> DomBuilder<A> where A: AsRef<HtmlElement> {
 
 impl<A> DomBuilder<A> where A: AsRef<HtmlElement> {
     #[inline]
-    pub fn style_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
+    pub fn style_signal<B, D, E>(mut self, name: B, value: E) -> Self
         where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
+              D: OptionStr,
               E: Signal<Item = D> + 'static {
 
         set_style_signal(self.element.as_ref().style(), &mut self.callbacks, name, value, false);
@@ -960,10 +958,9 @@ impl<A> DomBuilder<A> where A: AsRef<HtmlElement> {
     }
 
     #[inline]
-    pub fn style_important_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
+    pub fn style_important_signal<B, D, E>(mut self, name: B, value: E) -> Self
         where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
+              D: OptionStr,
               E: Signal<Item = D> + 'static {
 
         set_style_signal(self.element.as_ref().style(), &mut self.callbacks, name, value, true);
@@ -1038,24 +1035,24 @@ impl<A> DomBuilder<A> where A: AsRef<HtmlElement> {
 pub struct StylesheetBuilder {
     element: CssStyleDeclaration,
     callbacks: Callbacks,
+    selector: String,
 }
 
 // TODO remove the CssStyleRule when this is discarded
 impl StylesheetBuilder {
     // TODO should this inline ?
-    #[doc(hidden)]
     #[inline]
-    pub fn __internal_new<A>(selector: A) -> Self where A: MultiStr {
+    pub fn new<A>(selector: A) -> Self where A: MultiStr {
         // TODO can this be made faster ?
         // TODO somehow share this safely between threads ?
         thread_local! {
             static STYLESHEET: CssStyleSheet = bindings::create_stylesheet();
         }
 
-        fn try_make(stylesheet: &CssStyleSheet, selector: &str, selectors: &mut Vec<String>) -> Option<CssStyleDeclaration> {
+        fn try_make(stylesheet: &CssStyleSheet, selector: &str, selectors: &mut Vec<String>) -> Option<(String, CssStyleDeclaration)> {
             // TODO maybe intern the selector ?
             if let Ok(declaration) = bindings::make_style_rule(stylesheet, selector) {
-                Some(declaration.style())
+                Some((selector.to_string(), declaration.style()))
 
             } else {
                 selectors.push(String::from(selector));
@@ -1063,7 +1060,7 @@ impl StylesheetBuilder {
             }
         }
 
-        let element = STYLESHEET.with(move |stylesheet| {
+        let (selector, element) = STYLESHEET.with(move |stylesheet| {
             let mut selectors = vec![];
 
             let okay = selector.find_map(|selector| {
@@ -1072,7 +1069,6 @@ impl StylesheetBuilder {
 
             if let Some(okay) = okay {
                 okay
-
             } else {
                 // TODO maybe make this configurable
                 panic!("selectors are incorrect:\n  {}", selectors.join("\n  "));
@@ -1082,7 +1078,18 @@ impl StylesheetBuilder {
         Self {
             element,
             callbacks: Callbacks::new(),
+            selector
         }
+    }
+
+    #[inline]
+    pub fn new_unique_class() -> Self {
+        Self::new(__internal::make_class_id())
+    }
+
+    #[inline]
+    pub fn selector(&self) -> &str {
+        &self.selector
     }
 
     #[inline]
@@ -1114,10 +1121,9 @@ impl StylesheetBuilder {
     }
 
     #[inline]
-    pub fn style_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
+    pub fn style_signal<B, D, E>(mut self, name: B, value: E) -> Self
         where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
+              D: OptionStr,
               E: Signal<Item = D> + 'static {
 
         set_style_signal(self.element.clone(), &mut self.callbacks, name, value, false);
@@ -1125,16 +1131,19 @@ impl StylesheetBuilder {
     }
 
     #[inline]
-    pub fn style_important_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
+    pub fn style_important_signal<B, D, E>(mut self, name: B, value: E) -> Self
         where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
+              D: OptionStr,
               E: Signal<Item = D> + 'static {
 
         set_style_signal(self.element.clone(), &mut self.callbacks, name, value, true);
         self
     }
 
+    #[inline]
+    pub fn apply<F>(self, f: F) -> Self where F: FnOnce(Self) -> Self {
+        f(self)
+    }
     #[inline]
     pub fn style_unchecked_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
         where B: AsStr + 'static,
@@ -1148,105 +1157,21 @@ impl StylesheetBuilder {
 
     // TODO return a Handle
     #[inline]
-    #[doc(hidden)]
-    pub fn __internal_done(mut self) {
+    pub fn finish(mut self) -> String {
         self.callbacks.trigger_after_insert();
 
         // This prevents it from triggering after_remove
         self.callbacks.leak();
+        self.selector
     }
-}
 
-
-// TODO better warning message for must_use
-#[must_use]
-pub struct ClassBuilder {
-    stylesheet: StylesheetBuilder,
-    class_name: String,
-}
-
-impl ClassBuilder {
-    #[doc(hidden)]
     #[inline]
-    pub fn __internal_new() -> Self {
-        let class_name = __internal::make_class_id();
-
-        Self {
-            // TODO make this more efficient ?
-            stylesheet: StylesheetBuilder::__internal_new(&format!(".{}", class_name)),
-            class_name,
+    pub fn finish_class(self) -> String {
+        let mut selector = self.finish();
+        if selector.remove(0) != '.' {
+            panic!("Selector is not a class");
         }
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __internal_class_name(&self) -> &str {
-        &self.class_name
-    }
-
-    #[inline]
-    pub fn style<B, C>(mut self, name: B, value: C) -> Self
-        where B: MultiStr,
-              C: MultiStr {
-        self.stylesheet = self.stylesheet.style(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_important<B, C>(mut self, name: B, value: C) -> Self
-        where B: MultiStr,
-              C: MultiStr {
-        self.stylesheet = self.stylesheet.style_important(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_unchecked<B, C>(mut self, name: B, value: C) -> Self
-        where B: AsStr,
-              C: AsStr {
-        self.stylesheet = self.stylesheet.style_unchecked(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
-        where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
-              E: Signal<Item = D> + 'static {
-
-        self.stylesheet = self.stylesheet.style_signal(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_important_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
-        where B: MultiStr + 'static,
-              C: MultiStr,
-              D: OptionStr<Output = C>,
-              E: Signal<Item = D> + 'static {
-
-        self.stylesheet = self.stylesheet.style_important_signal(name, value);
-        self
-    }
-
-    #[inline]
-    pub fn style_unchecked_signal<B, C, D, E>(mut self, name: B, value: E) -> Self
-        where B: AsStr + 'static,
-              C: AsStr,
-              D: OptionStr<Output = C>,
-              E: Signal<Item = D> + 'static {
-
-        self.stylesheet = self.stylesheet.style_unchecked_signal(name, value);
-        self
-    }
-
-    // TODO return a Handle ?
-    #[doc(hidden)]
-    #[inline]
-    pub fn __internal_done(self) -> String {
-        self.stylesheet.__internal_done();
-        self.class_name
+        selector
     }
 }
 
@@ -1271,19 +1196,19 @@ pub mod __internal {
         let id = CLASS_ID.fetch_add(1, Ordering::Relaxed);
 
         // TODO make this more efficient ?
-        format!("__class_{}__", id)
+        format!(".__class_{}__", id)
     }
 
 
     pub struct Pseudo<'a, A> {
-        class_name: &'a str,
+        selector: &'a str,
         pseudos: A,
     }
 
     impl<'a, A> Pseudo<'a, A> where A: MultiStr {
         #[inline]
-        pub fn new(class_name: &'a str, pseudos: A) -> Self {
-            Self { class_name, pseudos }
+        pub fn new(selector: &'a str, pseudos: A) -> Self {
+            Self { selector, pseudos }
         }
     }
 
@@ -1291,7 +1216,7 @@ pub mod __internal {
         #[inline]
         fn find_map<B, F>(&self, mut f: F) -> Option<B> where F: FnMut(&str) -> Option<B> {
             self.pseudos.find_map(|x| {
-                f(&format!(".{}{}", self.class_name, x))
+                f(&format!(":is({}){}", self.selector, x))
             })
         }
     }
