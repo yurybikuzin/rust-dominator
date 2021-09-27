@@ -66,8 +66,8 @@ features = [
     "Window",
 ]
 
-[profile.release]
-debug-assertions = true
-
-[profile.bench]
-debug-assertions = true
+# [profile.release]
+# debug-assertions = true
+#
+# [profile.bench]
+# debug-assertions = true
